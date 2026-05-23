@@ -2,6 +2,7 @@ import {
   DndContext,
   DragOverlay,
   closestCorners,
+  TouchSensor,
   PointerSensor,
   useSensor,
   useSensors,
@@ -24,12 +25,18 @@ export default function BoardView({
   onCardClick,
 }) {
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 4,
-      },
-    })
-  )
+  useSensor(PointerSensor, {
+    activationConstraint: {
+      distance: 8,
+    },
+  }),
+  useSensor(TouchSensor, {
+    activationConstraint: {
+      delay: 150,
+      tolerance: 5,
+    },
+  })
+)
 
   const listIds = board.lists.map(
     (l) => l.id
