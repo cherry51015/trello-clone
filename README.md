@@ -17,6 +17,30 @@ Most candidates default to Node/Express because the assignment lists it first. I
 This was a conscious tradeoff: slightly less conventional for this role, but cleaner architecture and genuine ownership of every line.
 
 ---
+---
+
+## Demo & Screenshots
+
+🔗 **Live Demo:** [your-deployed-url]  
+📹 **Demo Video:** [your-drive-link]
+
+### Board View
+![Board View](screenshots/board-view.png)
+
+### Drag and Drop
+![Drag and Drop](screenshots/drag-drop.png)
+
+### Card Detail Modal
+![Card Modal](screenshots/card-modal.png)
+
+### Search & Filter
+![Search and Filter](screenshots/search-filter.png)
+
+### Checklist Progress
+![Checklist](screenshots/checklist.png)
+
+### AI Description Generation
+![AI Feature](screenshots/ai-generate.png)
 
 ## The Interesting Engineering Decision: Fractional Indexing
 
@@ -273,5 +297,5 @@ npm run dev
 | Backend | FastAPI | Type-safe, async, auto-docs, fits my Python depth |
 | ORM | SQLAlchemy 2.0 | Mature, `selectinload` for N+1 prevention |
 | Database | PostgreSQL / SQLite | Full relational model, FK constraints, cascade deletes |
-| AI | Gemini 1.5 Flash | Free tier sufficient, graceful fallback |
+| AI | Gemini 1.5 Flash | Free tier sufficient, handled with graceful fallback |
 | Deploy | Render (backend + DB) + Vercel (frontend) | Free tier, straightforward CI |
