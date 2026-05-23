@@ -23,21 +23,13 @@ app = FastAPI(
 
 
 app.add_middleware(
+    app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.frontend_url,
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "https://trello-clone-ruddy-tau.vercel.app",
-        "https://trello-clone-git-main-cherry51015s-projects.vercel.app"
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 @app.on_event("startup")
 def create_tables():
