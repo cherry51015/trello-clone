@@ -1,451 +1,277 @@
-# Trello Clone Development Board
+# Trello Clone — Full-Stack Engineering Assignment
 
-A modern Trello-inspired task management application built with React, FastAPI, and PostgreSQL/SQLite, focused on smooth drag-and-drop workflows, clean UI interactions, and realistic collaborative project management flows.
-
-This project was built as a full-stack engineering assignment with emphasis on:
-
-* intuitive UX
-* responsive interactions
-* clean backend architecture
-* optimistic UI updates
-* scalable data modeling
-* professional workflow organization
-
-The goal was not just to recreate Trello visually, but to understand and implement the interaction patterns, state flows, and product decisions behind collaborative Kanban systems.
+A Kanban-style project management application built with React, FastAPI, and PostgreSQL.  
+Live: [[deployed-link](https://trello-clone-ruddy-tau.vercel.app/)] · Repo: [[github-link](https://github.com/cherry51015/trello-clone)]
 
 ---
 
-# Project Preview
+## Why This Stack
 
-Features demonstrated in the application:
+Most candidates default to Node/Express because the assignment lists it first. I chose FastAPI deliberately:
 
-* Drag-and-drop cards between lists
-* Reorderable columns and cards
-* Checklist progress tracking
-* Due dates and overdue indicators
-* Member assignment
-* Colored labels/tags
-* Multi-filter system
-* AI-assisted description generation
-* Realistic seeded demo workspace
-* Smooth modal interactions
-* Optimistic frontend updates
+- **Type safety end-to-end.** Pydantic schemas validate every request/response at the boundary — no runtime surprises from malformed payloads.
+- **Auto-generated OpenAPI docs** at `/docs` — reviewers can explore and test every endpoint without Postman.
+- **Async-native.** The AI description generation endpoint is `async` — it doesn't block the worker thread during Gemini API calls.
+- **I know Python deeply.** From my ML background, I'm faster and more confident debugging Python than JavaScript on the backend.
 
----
-# Demo
-
-[Watch Demo Video](https://drive.google.com/file/d/1ARqfEE-DbWzfAg6NMBt3TZjGSmN1vg9S/view?usp=sharing)
+This was a conscious tradeoff: slightly less conventional for this role, but cleaner architecture and genuine ownership of every line.
 
 ---
 
-# Screenshots
+## The Interesting Engineering Decision: Fractional Indexing
 
-### Board View
-![Board View](screenshots/cleanInterface.png)
+Drag-and-drop ordering is deceptively hard. The naive approach — integer positions — breaks down fast:
 
-### Drag and Drop
-![Drag and Drop](screenshots/draggingAction.png)
+```
+Naive: positions = [1, 2, 3, 4]
+Move card to position 2 → UPDATE positions for cards 2, 3, 4
+= O(n) writes per drag operation
+= race conditions under concurrent moves
+= ordering conflicts if two users drag simultaneously
+```
 
-### Filter System
-![Filters](screenshots/Filter.png)
+I used **fractional (float) positioning** instead:
 
-### Search
-![Search](screenshots/SearchCard.png)
+```python
+def between(prev: float | None, next_: float | None) -> float:
+    if prev is None and next_ is None: return 1.0
+    if prev is None:  return next_ / 2
+    if next_ is None: return prev + 1.0
+    return (prev + next_) / 2
+```
 
-### Checklist Progress
-![Checklist](screenshots/barProgress.png)
+Moving a card between positions `0.5` and `1.0` gives `0.75`. Only **1 row updated** regardless of list size.
 
-### AI Description Fallback
-![AI Suggest](screenshots/AIsuggestFallback.png)
+The edge case: after many insertions, gaps shrink below a threshold (`0.001`). I detect this and rebalance by redistributing positions evenly — a rare O(n) operation that's not on the hot path. This is the same approach Linear and Figma use internally.
 
-
-# Tech Stack
-
-## Frontend
-
-* React
-* Vite
-* Tailwind CSS
-* dnd-kit
-* Axios
-* Lucide Icons
-
-## Backend
-
-* FastAPI
-* SQLAlchemy
-* Pydantic
-* Uvicorn
-
-## Database
-
-* SQLite (development)
-* PostgreSQL-ready structure
-
-## AI Integration
-
-* Gemini API integration with graceful fallback handling
+The frontend mirrors this logic in `utils/position.js` so optimistic updates compute the correct position client-side without waiting for the backend.
 
 ---
 
-# Core Features
+## Optimistic UI — The Right Way
 
-## Kanban Workflow Management
+Most clones either skip optimistic updates entirely or do them incorrectly (no rollback).
 
-The board is organized into professional workflow stages:
+My approach:
 
-* Backlog
-* In Progress
-* In Review
-* Done
+1. **Compute new state client-side immediately** using the same `between()` function as the backend
+2. **Update React state** — user sees the move instantly, no lag
+3. **Fire API call in background**
+4. **On failure**: rollback to server state via `refreshBoard()` + show toast error
 
-Cards can be dragged seamlessly across lists while preserving ordering and state consistency.
+```js
+optimisticMoveCard(card.id, toListId, newPos);   // immediate
+try {
+  await reorderCard(card.id, { list_id: toListId, prev_position, next_position });
+} catch {
+  toast.error("Failed to move card");
+  refreshBoard();   // rollback
+}
+```
 
----
-
-## Drag and Drop System
-
-Implemented using `dnd-kit` with smooth transitions and optimistic UI updates.
-
-Supports:
-
-* list reordering
-* card reordering
-* moving cards across columns
-
-The UI updates immediately before backend synchronization to create a fast, Trello-like experience.
+This is the pattern real production apps use (Vercel, Linear, Notion). The tradeoff: slightly more frontend complexity in exchange for an interaction that feels instant and professional.
 
 ---
 
-## Labels System
+## Database Schema Design
 
-Cards support colored labels such as:
+Designed for correctness first, not convenience. Key decisions:
 
-* Feature
-* Bug
-* Design
-* Research
-* Urgent
+**Float positions on both `lists` and `cards`** — enables O(1) reordering as above.
 
-Labels can be:
+**Junction tables for M:M relationships** (`card_labels`, `card_members`) kept separate from entity models to prevent circular imports and keep each model file focused.
 
-* added
-* removed
-* filtered globally
+**Cascade deletes everywhere** — deleting a board wipes its lists, which wipe their cards, which wipe labels/members/checklists. No orphaned rows.
 
-This helps simulate real sprint planning workflows.
+**UUIDs as primary keys** — avoids enumerable integer IDs in URLs (minor security hygiene, but worth doing correctly).
 
----
-
-## Member Assignment
-
-Cards support assigning multiple team members.
-
-The board includes:
-
-* member avatars
-* filtering by assigned member
-* visual assignment indicators
+```
+boards (id, title, bg_color, created_at)
+  └── lists (id, board_id, title, position: FLOAT)
+        └── cards (id, list_id, title, description, position: FLOAT, due_date, is_archived)
+              ├── card_labels (card_id, label_id)       ← M:M
+              ├── card_members (card_id, member_id)     ← M:M
+              └── checklists (id, card_id, title)
+                    └── checklist_items (id, checklist_id, text, is_done, position)
+```
 
 ---
 
-## Checklist & Progress Tracking
+## N+1 Query Prevention
 
-Cards support:
+Loading a board naively fires one query per card per relationship — 100+ queries for a realistic board. I use SQLAlchemy's `selectinload` to batch these:
 
-* multiple checklists
-* checklist items
-* completion tracking
-* automatic progress calculation
+```python
+board = (
+    db.query(Board)
+    .options(
+        selectinload(Board.lists).selectinload(List.cards).selectinload(Card.labels),
+        selectinload(Board.lists).selectinload(List.cards).selectinload(Card.members),
+        selectinload(Board.lists).selectinload(List.cards).selectinload(Card.checklists),
+    )
+    .filter(Board.id == board_id)
+    .first()
+)
+```
 
-Progress indicators update dynamically on the board.
-
----
-
-## Due Dates & Filters
-
-Cards support due dates with smart filtering:
-
-* Overdue
-* Today
-* This Week
-
-Overdue cards are visually highlighted to improve usability and workflow visibility.
+Board load = **4 queries total** regardless of card count. This matters at scale.
 
 ---
 
-## AI Description Generation
+## AI Feature — Designed to Never Break the App
 
-Cards support AI-generated task descriptions using Gemini integration.
+Since Scaler is an AI company, I added one small feature that felt native: AI-assisted card description generation using **Gemini 1.5 Flash** (free tier, 15 RPM).
 
-The feature was intentionally designed with:
+Design constraints I enforced on myself:
 
-* graceful fallback handling
-* disabled states during generation
-* non-blocking UX behavior
+- **Graceful degradation**: if `GEMINI_API_KEY` is absent or quota exceeded, the endpoint returns `{"description": ""}` — the button just does nothing. The app never crashes.
+- **Non-blocking**: the endpoint is `async`, so a slow Gemini response doesn't stall other requests.
+- **UX**: button shows "Generating..." during the call, populates the description textarea on success. User can edit before saving — the AI output is a starting point, not a final answer.
 
-This avoids breaking the application when API quotas are exceeded.
-
----
-
-# Product & UX Decisions
-
-## Workflow States vs Filters
-
-Workflow columns and filters were intentionally separated.
-
-Example:
-
-* “In Progress” is a workflow state
-* “Overdue” is a temporary filter condition
-
-This mirrors how real productivity systems like Trello, Jira, and Linear structure task management.
+This reflects how I think about AI features in production: useful when available, invisible when not.
 
 ---
 
-## Optimistic Updates
+## Search & Filter Architecture
 
-Most interactions update instantly on the frontend before backend confirmation.
+Filters are **composable and non-mutating** — they don't modify board state, they query against it:
 
-This improves perceived responsiveness and creates a smoother user experience.
+```python
+@router.get("/search/cards")
+def search_cards(
+    q: str | None,           # title substring search (ilike)
+    label_id: str | None,    # filter by label
+    member_id: str | None,   # filter by assigned member
+    due_before: date | None, # deadline filters
+    due_after: date | None,
+    db: Session = Depends(get_db)
+):
+```
 
-Tradeoff:
-
-* slightly more frontend complexity
-* significantly better interaction feel
-
----
-
-## Fractional Positioning System
-
-Cards and lists use position-based ordering instead of index-based ordering.
-
-This avoids:
-
-* expensive reindexing
-* unstable drag behavior
-* ordering conflicts
-
-And allows scalable drag-and-drop operations.
+All filters are optional and compose via `AND`. Frontend debounces the search input (300ms) so we're not hitting the API on every keystroke.
 
 ---
 
-## Pre-Seeded Demo Data
+## What I'd Build Next (Honest Assessment)
 
-The application ships with realistic seeded demo data so reviewers can immediately explore:
+**If given more time:**
+- **WebSocket-based realtime sync** — right now two users on the same board won't see each other's changes without refresh. This is the biggest missing piece for a real collaborative tool.
+- **Conflict resolution** — if two users drag the same card simultaneously, last-write-wins. A proper solution uses operational transforms or CRDTs.
+- **Activity log** — every mutation should append to an audit trail (who moved what, when). Valuable for team accountability.
+- **Alembic migrations** — I use `create_all()` for dev convenience, but production needs versioned schema migrations.
 
-* filters
-* labels
-* drag-and-drop
-* checklist progress
-* due-date workflows
-* collaborative task management
-
-without manually creating content.
-
-This was intentionally designed to improve evaluation usability.
+**Deliberate non-scope:**
+- Authentication: the assignment says assume a logged-in user, so I didn't add it. Adding it would mean JWT tokens, refresh logic, and RBAC — correct to skip given the 48hr scope.
 
 ---
 
-# Folder Structure
+## Project Structure
 
-```bash
+```
 trello-clone/
-│
 ├── backend/
 │   ├── app/
-│   │   ├── core/
-│   │   ├── models/
-│   │   ├── routers/
-│   │   ├── schemas/
+│   │   ├── core/config.py          # pydantic-settings, env vars
+│   │   ├── models/                 # SQLAlchemy ORM models
+│   │   │   ├── associations.py     # M:M junction tables (imported first)
+│   │   │   ├── board.py
+│   │   │   ├── list_.py
+│   │   │   ├── card.py             # Card, Label, Checklist, ChecklistItem
+│   │   │   └── member.py
+│   │   ├── routers/                # one file per resource
+│   │   │   ├── boards.py
+│   │   │   ├── lists.py
+│   │   │   ├── cards.py            # also handles labels, members, checklists
+│   │   │   ├── members.py
+│   │   │   └── search.py
+│   │   ├── schemas/                # Pydantic request/response models
 │   │   ├── services/
-│   │   ├── database.py
-│   │   └── main.py
-│   │
-│   ├── seed.py
-│   ├── requirements.txt
-│   └── .env
+│   │   │   ├── position.py         # fractional indexing logic
+│   │   │   └── ai_service.py       # Gemini integration with fallback
+│   │   ├── database.py             # engine, session, Base, get_db
+│   │   └── main.py                 # app init, CORS, router registration
+│   ├── seed.py                     # realistic demo data
+│   └── requirements.txt
 │
-├── frontend/
-│   ├── src/
-│   │   ├── api/
-│   │   ├── components/
-│   │   ├── hooks/
-│   │   ├── pages/
-│   │   ├── utils/
-│   │   └── main.jsx
-│   │
-│   ├── package.json
-│   └── vite.config.js
+└── frontend/
+    └── src/
+        ├── api/                    # axios wrappers per resource
+        ├── components/
+        │   ├── Board/              # BoardView (DnD root), BoardHeader
+        │   ├── Card/               # CardItem (sortable), CardModal, MemberAvatar
+        │   ├── List/               # ListColumn (droppable), ListHeader, AddCardInput
+        │   ├── Modals/             # LabelPicker, MemberPicker, ChecklistSection
+        │   └── UI/                 # SearchBar, Spinner, Toast
+        ├── hooks/
+        │   ├── useBoard.js         # central state + optimistic helpers
+        │   └── useKeyboard.js      # / → search, Esc → close modal
+        └── utils/
+            ├── position.js         # client-side between() — mirrors backend
+            └── dateFormat.js       # overdue/due-soon/normal classification
 ```
 
 ---
 
-# Setup Instructions
+## Setup
 
-# 1. Clone Repository
-
-```bash
-git clone https://github.com/cherry51015/trello-clone
-cd trello
-```
-
----
-
-# 2. Backend Setup
+### Backend
 
 ```bash
 cd backend
 python -m venv venv
-```
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Mac/Linux
 
-Activate environment:
-
-## Windows
-
-```bash
-venv\Scripts\activate
-```
-
-## Mac/Linux
-
-```bash
-source venv/bin/activate
-```
-
-Install dependencies:
-
-```bash
 pip install -r requirements.txt
 ```
 
-Create `.env`
-
+Create `.env`:
 ```env
-GEMINI_API_KEY=your_api_key
+DATABASE_URL=postgresql://postgres:password@localhost:5432/trello_clone
+GEMINI_API_KEY=your_key_here        # optional — app works without it
+FRONTEND_URL=http://localhost:5173
 ```
-
-Run backend:
 
 ```bash
 python -m uvicorn app.main:app --reload
+# API: http://localhost:8000
+# Docs: http://localhost:8000/docs
 ```
 
----
-
-# 3. Seed Demo Data
-
+Seed demo data:
 ```bash
 python seed.py
 ```
 
-This populates:
-
-* boards
-* lists
-* cards
-* members
-* labels
-* checklists
-* due dates
-
----
-
-# 4. Frontend Setup
+### Frontend
 
 ```bash
 cd frontend
 npm install
 npm run dev
-```
-
-Frontend:
-
-```txt
-http://localhost:5173
-```
-
-Backend:
-
-```txt
-http://localhost:8000
+# http://localhost:5173
 ```
 
 ---
 
-# Assumptions Made
+## Assumptions
 
-* Single-user environment for assignment scope
-* No realtime websocket synchronization
-* No authentication system
-* AI generation treated as enhancement, not critical dependency
-* Focus prioritized on interaction quality and state consistency
-
----
-
-# Challenges Solved
-
-## Drag-and-Drop Synchronization
-
-Handling:
-
-* optimistic UI updates
-* cross-column moves
-* ordering consistency
-* backend synchronization
-
-without visual flickering.
+- **Single user**: no auth, no session management — default user assumed per assignment spec.
+- **SQLite for local dev**: schema is PostgreSQL-compatible, `DATABASE_URL` switches it. Deployed on Render with PostgreSQL.
+- **AI as enhancement**: Gemini integration degrades gracefully — zero impact on core functionality when unavailable.
+- **No realtime sync**: multi-user collaboration would require WebSockets — out of scope for 48hr assignment, documented as known limitation.
 
 ---
 
-## Nested Checklist State
+## Tech Stack
 
-Managing:
-
-* checklist creation
-* checklist item updates
-* live progress tracking
-* frontend refresh consistency
-
-while keeping modal interactions smooth.
-
----
-
-## Filter Architecture
-
-Implemented composable filters for:
-
-* labels
-* members
-* due dates
-
-without mutating underlying board state.
-
----
-
-# Future Improvements
-
-Potential extensions:
-
-* realtime collaboration with WebSockets
-* activity logs
-* comments system
-* attachments
-* mobile optimization
-* board background customization
-* notifications
-* authentication & permissions
-
----
-
-# Final Notes
-
-This project was built with focus on:
-
-* clean interaction flows
-* practical product decisions
-* frontend/backend consistency
-* maintainable architecture
-* realistic collaborative workflows
-
-Rather than building a minimal CRUD clone, the intention was to create a polished and believable task management experience that feels close to real-world productivity tooling.
+| Layer | Choice | Why |
+|---|---|---|
+| Frontend | React + Vite | Fast iteration, component model fits Kanban well |
+| Styling | Tailwind CSS | Utility-first, no context-switching |
+| Drag-and-drop | dnd-kit | Modern, maintained, flexible (react-beautiful-dnd is deprecated) |
+| Backend | FastAPI | Type-safe, async, auto-docs, fits my Python depth |
+| ORM | SQLAlchemy 2.0 | Mature, `selectinload` for N+1 prevention |
+| Database | PostgreSQL / SQLite | Full relational model, FK constraints, cascade deletes |
+| AI | Gemini 1.5 Flash | Free tier sufficient, graceful fallback |
+| Deploy | Render (backend + DB) + Vercel (frontend) | Free tier, straightforward CI |
