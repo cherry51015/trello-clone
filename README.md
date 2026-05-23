@@ -21,26 +21,28 @@ This was a conscious tradeoff: slightly less conventional for this role, but cle
 
 ## Demo & Screenshots
 
-🔗 **Live Demo:** [your-deployed-url]  
-📹 **Demo Video:** [your-drive-link]
+🔗 **Live Demo:** [[your-deployed-url](https://trello-clone-ruddy-tau.vercel.app/)]  
+📹 **Demo Video:** [[your-drive-link](https://drive.google.com/file/d/1ARqfEE-DbWzfAg6NMBt3TZjGSmN1vg9S/view?usp=sharing)]
+
 
 ### Board View
-![Board View](screenshots/board-view.png)
+![Board View](screenshots/cleanInterface.png)
 
 ### Drag and Drop
-![Drag and Drop](screenshots/drag-drop.png)
+![Drag and Drop](screenshots/draggingAction.png)
 
-### Card Detail Modal
-![Card Modal](screenshots/card-modal.png)
+### Filter System
+![Filters](screenshots/Filter.png)
 
-### Search & Filter
-![Search and Filter](screenshots/search-filter.png)
+### Search
+![Search](screenshots/SearchCard.png)
 
 ### Checklist Progress
-![Checklist](screenshots/checklist.png)
+![Checklist](screenshots/barProgress.png)
 
-### AI Description Generation
-![AI Feature](screenshots/ai-generate.png)
+### AI Description Fallback
+![AI Suggest](screenshots/AIsuggestFallback.png)
+
 
 ## The Interesting Engineering Decision: Fractional Indexing
 
