@@ -32,6 +32,32 @@ Features demonstrated in the application:
 * Optimistic frontend updates
 
 ---
+# Demo
+
+[Watch Demo Video](https://drive.google.com/file/d/1ARqfEE-DbWzfAg6NMBt3TZjGSmN1vg9S/view?usp=sharing)
+
+---
+
+# Screenshots
+
+### Board View
+![Board View](screenshots/cleanInterface.png)
+
+### Drag and Drop
+![Drag and Drop](screenshots/draggingAction.png)
+
+### Filter System
+![Filters](screenshots/Filter.png)
+
+### Search
+![Search](screenshots/SearchCard.png)
+
+### Checklist Progress
+![Checklist](screenshots/barProgress.png)
+
+### AI Description Fallback
+![AI Suggest](screenshots/AIsuggestFallback.png)
+
 
 # Tech Stack
 
@@ -260,8 +286,8 @@ trello-clone/
 # 1. Clone Repository
 
 ```bash
-git clone <repo-url>
-cd trello-clone
+git clone https://github.com/cherry51015/trello-clone
+cd trello
 ```
 
 ---
