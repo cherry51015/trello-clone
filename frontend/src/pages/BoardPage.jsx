@@ -71,7 +71,13 @@ export default function BoardPage() {
     }))
   } : null
 
-  if (loading) return <Loader />
+  if (loading) return (
+  <div className="flex flex-col items-center justify-center h-screen bg-[#1d2125] gap-4">
+    <div className="w-8 h-8 border-4 border-[#579dff] border-t-transparent rounded-full animate-spin" />
+    <p className="text-[#8c9bab] text-sm">Loading board…</p>
+    <p className="text-[#596773] text-xs">First load may take 30–60s on free tier</p>
+  </div>
+)
   if (error) return <div className="text-red-400 p-8">{error}</div>
 
   return (
