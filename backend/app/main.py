@@ -21,9 +21,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-
 app.add_middleware(
-    app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
@@ -46,12 +44,8 @@ app.include_router(search.router)
 
 @app.get("/health")
 def health():
-    return {
-        "status": "ok"
-    }
+    return {"status": "ok"}
 
 @app.get("/")
 def root():
-    return {
-        "message": "Trello Clone API"
-    }
+    return {"message": "Trello Clone API"}
