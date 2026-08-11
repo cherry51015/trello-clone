@@ -1,4 +1,8 @@
-# Trello Clone — Full-Stack Engineering Assignment
+# Trello Clone — Full-Stack Engineering Assignment## Demo & Screenshots
+
+
+🔗 **Live Demo:** [Open the deployed application](https://trello-clone-7f296cerp-cherry51015s-projects.vercel.app/)  
+📹 **Demo Video:** [Watch the demo](https://drive.google.com/file/d/1ARqfEE-DbWzfAg6NMBt3TZjGSmN1vg9S/view?usp=sharing)
 
 A Kanban-style project management application built with React, FastAPI, and PostgreSQL.  
 Live: [[deployed-link](https://trello-clone-7f296cerp-cherry51015s-projects.vercel.app/)] · Repo: [[github-link](https://github.com/cherry51015/trello-clone)]
