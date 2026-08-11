@@ -195,6 +195,17 @@ All filters are optional and compose via `AND`. Frontend debounces the search in
 
 ---
 
+## Architecture Overview
+
+The application follows a separated frontend-backend architecture:
+
+- **Frontend:** React + Vite handles the Kanban UI, drag-and-drop interactions, optimistic updates, and API communication.
+- **Backend:** FastAPI exposes REST APIs, validates requests with Pydantic, and manages application logic through SQLAlchemy.
+- **Database:** PostgreSQL stores boards, lists, cards, members, labels, and checklist data.
+- **AI service:** Gemini-powered description generation is isolated behind a service layer with graceful fallback when the API is unavailable.
+
+---
+
 ## Project Structure
 
 ```
